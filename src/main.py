@@ -28,10 +28,10 @@ import logconfig
 import clearoutside
 
 from secrets import (
-    LAT,
-    LON,
-    WIFI_SSID, 
-    WIFI_PASSWORD,
+    LAT,            # type: ignore
+    LON,            # type: ignore
+    WIFI_SSID,      # type: ignore
+    WIFI_PASSWORD,  # type: ignore
 )
 
 # Configuration
