@@ -40,13 +40,13 @@ DEFAULT_KEEP = ("total_cloud", "low_cloud", "mid_cloud", "high_cloud",
                 "precip_prob", "temp", "wind", "humidity")
 
 # --- Display ---
-# Inky Frame palette pen indices. Palette pens are drawn as solid ink; RGB pens would be dithered.
+# Inky Frame palette pen indices, drawn as solid ink.
 BLACK, WHITE, GREEN, BLUE, RED, YELLOW, ORANGE = range(7)
 
 # Pens indexed by rating (good, ok, bad) and darkness (day, sunset, dusk, night).
 RATING_PENS = (GREEN, YELLOW, RED)
 DARKNESS_PENS = (WHITE, ORANGE, BLUE, BLACK)
-# The palette has no gray, so this RGB pen is dithered.
+# The palette has no gray, so this is an RGB pen; it is drawn without dithering.
 DAYLIGHT_OUTLINE_RGB = (128, 128, 128)
 
 FONT = "bitmap8"

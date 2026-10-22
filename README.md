@@ -1,7 +1,8 @@
 # clear-outside-inky-frame
-🌃🔭📊
 
 Astronomy forecast from [Clear Outside](https://clearoutside.com/) for the Pimoroni Inky Frame 4.0.
+
+![Inky Frame preview](assets/frame_preview.png)
 
 ## Data source
 

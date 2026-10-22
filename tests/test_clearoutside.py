@@ -6,6 +6,8 @@ import pytest
 
 from src import clearoutside
 
+LAT, LON = "52.23", "21.01"  # Warsaw
+
 PAGE = [
     b"<h1>Forecast for Test Town (1.00, 2.00)</h1>\n",
     b"<h2>Generated: 2026-01-01 12:00. Timezone: Europe/Warsaw<</h2>\n",
@@ -92,7 +94,7 @@ def test_fetch_live(ssl_context):
     # Real network; only the MicroPython-style socket calls in `fetch` are adapted to CPython.
     ssl_context.return_value.wrap_socket.side_effect = wrap_socket
 
-    data = clearoutside.fetch(52.23, 21.01, keep=("total_cloud",), view=clearoutside.VIEW)
+    data = clearoutside.fetch(LAT, LON, keep=("total_cloud",), view=clearoutside.VIEW)
 
     assert data["location"]
     assert data["generated"]
