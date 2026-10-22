@@ -1,0 +1,9 @@
+.*
+!.gitignore
+
+__pycache__/
+typings/
+*.code-workspace
+
+secrets.py
+log.log
