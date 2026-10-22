@@ -4,7 +4,7 @@ from picographics import PicoGraphics, DISPLAY_INKY_FRAME_4 as DISPLAY  # 4.0"
 FORECAST_FILE = "forecast.json"
 
 
-def has_forecast():
+def has_forecast() -> bool:
     try:
         os.stat(FORECAST_FILE)
         return True
@@ -22,21 +22,14 @@ import logging
 import time
 
 import machine
-import board
 
+# local imports
+import board
 import logconfig
 import clearoutside
 
-from secrets import (
-    LAT,            # type: ignore
-    LON,            # type: ignore
-    WIFI_SSID,      # type: ignore
-    WIFI_PASSWORD,  # type: ignore
-)
-
-# Configuration
-UPDATE_INTERVAL = 60 * 4 # minutes, max 255 (RTC timer limit)
-RETRY_INTERVAL = 10  # minutes to wait after a failed update before trying again
+from config import UPDATE_INTERVAL, RETRY_INTERVAL      # type: ignore
+from secrets import LAT, LON, WIFI_SSID, WIFI_PASSWORD  # type: ignore
 
 LAST_UPDATE_FILE = "last_update.txt"  # time.time() of the last successful draw
 
@@ -83,7 +76,7 @@ board.led_warn.off()
 failed = False
 try:
     board.pulse_warn_led(2)
-    if drawing:
+    if graphics is not None:
         clearoutside.show(graphics, FORECAST_FILE)
     else:
         board.connect(WIFI_SSID, WIFI_PASSWORD)

@@ -8,7 +8,7 @@ LOG_FORMAT = "%(levelname)s\t %(asctime)s --- %(message)s (%(module)s:%(lineno)d
 class Formatter(logging.Formatter):
     # MicroPython records have no module/lineno, so the logger name and 0 stand in for them.
     # Its logging also can't format time (no time.strftime), so asctime is built by hand.
-    def format(self, record):
+    def format(self, record: logging.LogRecord) -> str:
         if hasattr(record, "module"):
             return super().format(record)
         if self.usesTime():
@@ -26,12 +26,12 @@ class Formatter(logging.Formatter):
 
 class FlushingFileHandler(logging.FileHandler):
     # The board can lose power right after an update, so don't leave lines in the write buffer.
-    def emit(self, record):
+    def emit(self, record: logging.LogRecord) -> None:
         super().emit(record)
         self.stream.flush()
 
 
-def setup(level=logging.INFO, filename=LOG_FILE):
+def setup(level: int = logging.INFO, filename: str = LOG_FILE) -> None:
     """Log to the console and append to `filename`. Works on MicroPython and CPython."""
     logging.basicConfig(level=level)
     root = logging.getLogger()

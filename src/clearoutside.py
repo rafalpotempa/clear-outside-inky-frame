@@ -4,7 +4,24 @@
 
 import json
 import logging
+import math
 import os
+
+# Type aliases. MicroPython has no typing module, so they are real only for type checkers; at runtime they are placeholders.
+TYPE_CHECKING = False
+if TYPE_CHECKING:
+    from typing import Any, Iterable, Iterator, TypeAlias
+
+    from picographics import PicoGraphics as Graphics
+
+    Forecast: TypeAlias = dict[str, Any]
+    Day: TypeAlias = dict[str, Any]
+    HtmlLines: TypeAlias = Iterable[bytes | str]
+    ByteLines: TypeAlias = Iterator[bytes]
+    ListItems: TypeAlias = Iterator[tuple[str, str | None, str]]  # (class, title, text)
+else:
+    Graphics = Forecast = Day = HtmlLines = ByteLines = ListItems = object
+
 log = logging.getLogger("clearoutside")
 
 # --- Data source ---
@@ -63,7 +80,7 @@ ASCII = {"ą": "a", "ć": "c", "ę": "e", "ł": "l", "ń": "n", "ó": "o", "ś":
          "Ą": "A", "Ć": "C", "Ę": "E", "Ł": "L", "Ń": "N", "Ó": "O", "Ś": "S", "Ź": "Z", "Ż": "Z"}
 
 
-def update(lat, lon, path):
+def update(lat: float | str, lon: float | str, path: str) -> None:
     """Fetch the forecast and save it as JSON at `path`. Drawing happens after a restart, see show()."""
     _log_memory("start")
     data = fetch(lat, lon, keep=(), view=VIEW)
@@ -76,7 +93,7 @@ def update(lat, lon, path):
     log.info("Saved forecast to %s", path)
 
 
-def show(graphics, path):
+def show(graphics: Graphics, path: str) -> None:
     """Draw the forecast saved by update(), then delete it so that the next boot downloads a fresh one."""
     try:
         with open(path) as f:
@@ -87,7 +104,7 @@ def show(graphics, path):
         os.remove(path)
 
 
-def _log_memory(label):
+def _log_memory(label: str) -> None:
     # Free heap and the largest single block still allocatable (the frame buffer needs ~96000 contiguous bytes).
     import gc
     gc.collect()
@@ -102,13 +119,16 @@ def _log_memory(label):
     log.info("Memory %s: %d free, largest block ~%d", label, gc.mem_free(), lo)
 
 
-def draw(graphics, data):
+def draw(graphics: Graphics, data: Forecast) -> None:
     width, _ = graphics.get_bounds()
     days = data["days"]
     cell = min((width - LABEL_WIDTH - MARGIN) // len(HOURS), (ROW_HEIGHT - 4) // 2)
     sq = cell - 1
     grid_x = LABEL_WIDTH + (width - LABEL_WIDTH - len(HOURS) * cell) // 2
     gray = graphics.create_pen(*DAYLIGHT_OUTLINE_RGB)
+    # The moon fills the height of a day's two grid rows, just left of the grid.
+    moon_r = cell - 4
+    moon_x = grid_x - MARGIN - moon_r - 10
 
     graphics.set_font(FONT)
     graphics.set_pen(WHITE)
@@ -128,6 +148,8 @@ def draw(graphics, data):
         graphics.text("%s %s%%" % (day.get("moon_phase"), day.get("moon_illum")), MARGIN, y + 20, LABEL_WIDTH, 1)
         astro = day.get("astro_dark")
         graphics.text("Astro %s" % ("%s-%s" % tuple(astro) if astro else "none"), MARGIN, y + 32, LABEL_WIDTH, 1)
+        # moon_phase_n is negative while the moon is waning.
+        draw_moon(graphics, moon_x, y + 1 + cell, moon_r, day.get("moon_illum"), (day.get("moon_phase_n") or 0) < 0)
         index = {h: i for i, h in enumerate(day["hours"])}
         for c, h in enumerate(HOURS):
             i = index.get(h)
@@ -150,7 +172,28 @@ def draw(graphics, data):
     graphics.update()
 
 
-def darkness(day, hour):
+def draw_moon(graphics: Graphics, cx: int, cy: int, r: int, illum: int | None, waning: bool) -> None:
+    """Moon disc with a black outline: lit part white, shaded part black, as seen from the northern hemisphere."""
+    graphics.set_pen(BLACK)
+    for dy in range(-r, r + 1):
+        w = int(math.sqrt(r * (r + 1) - dy * dy))
+        graphics.rectangle(cx - w, cy + dy, 2 * w + 1, 1)
+    lit = min(max(illum or 0, 0), 100) / 100
+    if not lit:
+        return
+    graphics.set_pen(WHITE)
+    inner = r - 1  # leaves a 1 px outline
+    for dy in range(-inner, inner + 1):
+        w = math.sqrt(inner * (inner + 1) - dy * dy)
+        # The terminator is a half-ellipse; the lit part runs from it to the limb, on the right while waxing.
+        a, b = math.ceil(w * (1 - 2 * lit)), math.floor(w)
+        if waning:
+            a, b = -b, -a
+        if a <= b:
+            graphics.rectangle(cx + a, cy + dy, b - a + 1, 1)
+
+
+def darkness(day: Day, hour: int) -> int:
     """0 daylight, 1 sunset (sun below horizon), 2 dusk (civil dark), 3 astronomical night."""
     t = hour * 60 + 30
     if _within(t, day.get("astro_dark")):
@@ -163,7 +206,7 @@ def darkness(day, hour):
     return 0
 
 
-def _within(t, interval):
+def _within(t: int, interval: tuple[str, str] | None) -> bool:
     # interval is ("HH:MM", "HH:MM") and may wrap past midnight.
     if not interval:
         return False
@@ -171,20 +214,20 @@ def _within(t, interval):
     return a <= t < b if a <= b else t >= a or t < b
 
 
-def _minutes(hhmm):
+def _minutes(hhmm: str) -> int:
     h, _, m = hhmm.partition(":")
     return int(h) * 60 + int(m)
 
 
-def _ascii(s):
+def _ascii(s: str | None) -> str:
     return "".join(ASCII.get(c, c if ord(c) < 128 else "?") for c in s or "")
 
 
-def fetch(lat, lon, keep=DEFAULT_KEEP, view=None):
+def fetch(lat: float | str, lon: float | str, keep: tuple[str, ...] = DEFAULT_KEEP, view: str | None = None) -> Forecast:
     return parse(iter_lines_micropython(lat, lon, view), keep)
 
 
-def iter_lines_micropython(lat, lon, view=None):
+def iter_lines_micropython(lat: float | str, lon: float | str, view: str | None = None) -> ByteLines:
     """Stream the forecast page over HTTPS on MicroPython, yielding lines."""
     import socket
     import ssl
@@ -220,16 +263,16 @@ def iter_lines_micropython(lat, lon, view=None):
         sock.close()
 
 
-def parse(lines, keep=DEFAULT_KEEP):
+def parse(lines: HtmlLines, keep: tuple[str, ...] = DEFAULT_KEEP) -> Forecast:
     """Parse an iterable of HTML lines (bytes or str) into a dict."""
-    labels = {}
+    labels: dict[str, str] = {}
     for prefix, key in ROWS:
         if key in keep:
             labels[prefix] = key
 
-    result = {"location": None, "generated": None, "timezone": None, "days": []}
-    day = None
-    pending = None  # "ratings" or a row key; collects <li> items until </ul>
+    result: Forecast = {"location": None, "generated": None, "timezone": None, "days": []}
+    day: Day | None = None
+    pending: str | None = None  # "ratings" or a row key; collects <li> items until </ul>
     count = 0
 
     for line in lines:
@@ -239,7 +282,7 @@ def parse(lines, keep=DEFAULT_KEEP):
         if isinstance(line, bytes):
             line = line.decode("utf-8", "ignore")
 
-        if pending is not None:
+        if pending is not None and day is not None:
             for cls, title, text in _iter_li(line):
                 if pending == "ratings":
                     day["hours"].append(_to_int(text.split()[0]) if text else None)
@@ -299,7 +342,7 @@ def parse(lines, keep=DEFAULT_KEEP):
     return result
 
 
-def _iter_li(line):
+def _iter_li(line: str) -> ListItems:
     # Yields (class, title, text) for every <li> on a line.
     for part in line.split("<li")[1:]:
         if not part or part[0] not in " >":
@@ -311,7 +354,7 @@ def _iter_li(line):
         yield cls, title, text
 
 
-def _parse_li(key, cls, title, text):
+def _parse_li(key: str, cls: str, title: str | None, text: str) -> tuple[int | None, int | None] | str | int | None:
     if key == "wind":
         return (_to_int(text), _to_int(_between(title or "", "(", "&deg;")))
     if key in ("precip_type", "frost"):
@@ -321,7 +364,7 @@ def _parse_li(key, cls, title, text):
     return _to_int(text)
 
 
-def _labelled(text, label):
+def _labelled(text: str, label: str) -> tuple[str, str] | str | None:
     # "Civil Dark: 18:50 - 06:17." -> ("18:50", "06:17"); "None" -> None
     v = _between(text, label + ": ", ".")
     if v is None:
@@ -333,7 +376,7 @@ def _labelled(text, label):
     return v if ":" in v else None
 
 
-def _between(s, start, end, pos=0):
+def _between(s: str, start: str, end: str, pos: int = 0) -> str | None:
     i = s.find(start, pos)
     if i < 0:
         return None
@@ -344,7 +387,7 @@ def _between(s, start, end, pos=0):
     return s[i:j]
 
 
-def _strip_tags(s):
+def _strip_tags(s: str) -> str:
     out = []
     depth = 0
     for ch in s:
@@ -357,11 +400,13 @@ def _strip_tags(s):
     return "".join(out).replace("&nbsp;", " ").strip()
 
 
-def _to_int(s):
+def _to_int(s: str | None) -> int | None:
+    if s is None:
+        return None
     try:
         return int(s)
-    except (ValueError, TypeError):
+    except ValueError:
         try:
             return round(float(s))
-        except (ValueError, TypeError):
+        except ValueError:
             return None

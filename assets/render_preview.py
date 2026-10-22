@@ -11,15 +11,15 @@ from PIL import Image
 
 HERE = Path(__file__).parent
 REPO = HERE.parent
-FONT_FILE = HERE / "font8_data.cpp"
+FONT_FILE = Path(HERE, "font8_data.cpp")
 FONT_URL = "https://raw.githubusercontent.com/pimoroni/pimoroni-pico/main/libraries/bitmap_fonts/font8_data.cpp"
 WIDTH, HEIGHT = 640, 400
 LAT, LON = "52.23", "21.01"  # Warsaw
 # Measured Inky 7-colour panel colors (Pimoroni inky library SATURATED_PALETTE), order: black, white, green, blue, red, yellow, orange.
 PALETTE = ((57, 48, 57), (255, 255, 255), (58, 91, 70), (61, 59, 94), (156, 72, 75), (208, 190, 71), (177, 106, 73))
 
-sys.path.insert(0, str(REPO / "src"))
-import clearoutside  # noqa: E402
+sys.path.insert(0, str(REPO))
+from src import clearoutside  # noqa: E402
 
 
 def load_font8(path: Path) -> tuple[list[int], list[list[int]]]:
@@ -38,7 +38,9 @@ def load_font8(path: Path) -> tuple[list[int], list[list[int]]]:
 class FakePicoGraphics:
     def __init__(self) -> None:
         self.image = Image.new("RGB", (WIDTH, HEIGHT), PALETTE[1])
-        self.pixels = self.image.load()
+        pixels = self.image.load()
+        assert pixels is not None
+        self.pixels = pixels
         self.pen = 0
         self.rgb_pens: list[tuple[int, int, int]] = []
         self.widths, self.glyphs = load_font8(FONT_FILE)
@@ -104,13 +106,14 @@ class FakePicoGraphics:
 def fetch_lines():
     url = f"https://{clearoutside.HOST}/forecast/{LAT}/{LON}?view={clearoutside.VIEW}"
     html = subprocess.run(["curl", "-sfL", "-A", "inky-frame", url], capture_output=True, check=True).stdout
+    assert html is not None
     yield from html.splitlines(keepends=True)
 
 
 if __name__ == "__main__":
     data = clearoutside.parse(fetch_lines(), keep=())
     graphics = FakePicoGraphics()
-    clearoutside.draw(graphics, data)
+    clearoutside.draw(graphics, data)  # pyright: ignore[reportArgumentType]  # duck-typed stand-in for PicoGraphics
     out = HERE / "frame_preview.png"
     graphics.image.save(out)
     print(f"Image saved to '{out}'")

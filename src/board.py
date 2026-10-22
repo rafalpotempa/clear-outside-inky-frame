@@ -27,16 +27,16 @@ rtc = PCF85063A(i2c)
 
 led_warn = Pin(6, Pin.OUT)
 led_warn_timer = Timer(-1)
-led_warn_pwm = None
+led_warn_pwm: PWM | None = None
 
 
 # duty cycle following a sinusoid seeded by the current time, gamma corrected (gamma 2.8)
-def sine_duty(speed_hz):
+def sine_duty(speed_hz: float) -> int:
     brightness = (math.sin(time.ticks_ms() * math.pi * 2 / (1000 / speed_hz)) * 40) + 60
     return int(pow(brightness / 100.0, 2.8) * 65535.0 + 0.5)
 
 
-def led_warn_callback(t):
+def led_warn_callback(t: Timer) -> None:
     led_warn_pwm.duty_u16(sine_duty(led_warn_pulse_speed_hz))
 
 
@@ -44,7 +44,7 @@ led_warn_pulse_speed_hz = 1
 
 
 # pulse the warn led until stop_pulse_warn_led() is called
-def pulse_warn_led(speed_hz=1):
+def pulse_warn_led(speed_hz: float = 1) -> None:
     global led_warn_pwm, led_warn_pulse_speed_hz
     led_warn_pulse_speed_hz = speed_hz
     led_warn_timer.deinit()
@@ -55,7 +55,7 @@ def pulse_warn_led(speed_hz=1):
 
 
 # stop pulsing and leave the warn led on or off
-def stop_pulse_warn_led(on=False):
+def stop_pulse_warn_led(on: bool = False) -> None:
     global led_warn_pwm
     led_warn_timer.deinit()
     if led_warn_pwm is not None:
@@ -72,7 +72,7 @@ network_led_pwm.duty_u16(0)
 
 
 # set the brightness of the network led
-def network_led(brightness):
+def network_led(brightness: float) -> None:
     brightness = max(0, min(100, brightness))  # clamp to range
     # gamma correct the brightness (gamma 2.8)
     value = int(pow(brightness / 100.0, 2.8) * 65535.0 + 0.5)
@@ -83,13 +83,13 @@ network_led_timer = Timer(-1)
 network_led_pulse_speed_hz = 1
 
 
-def network_led_callback(t):
+def network_led_callback(t: Timer) -> None:
     # updates the network led brightness based on a sinusoid seeded by the current time
     network_led_pwm.duty_u16(sine_duty(network_led_pulse_speed_hz))
 
 
 # set the network led into pulsing mode
-def pulse_network_led(speed_hz=1):
+def pulse_network_led(speed_hz: float = 1) -> None:
     global network_led_timer, network_led_pulse_speed_hz
     network_led_pulse_speed_hz = speed_hz
     network_led_timer.deinit()
@@ -97,13 +97,13 @@ def pulse_network_led(speed_hz=1):
 
 
 # turn off the network led and disable any pulsing animation that's running
-def stop_network_led():
+def stop_network_led() -> None:
     global network_led_timer
     network_led_timer.deinit()
     network_led_pwm.duty_u16(0)
 
 
-def sleep(t):
+def sleep(t: int) -> None:
     # Time to have a little nap until the next update
     rtc.clear_timer_flag()
     rtc.set_timer(t, ttp=rtc.TIMER_TICK_1_OVER_60HZ)
@@ -118,7 +118,7 @@ def sleep(t):
 
 
 # Turns off the button LEDs
-def clear_button_leds():
+def clear_button_leds() -> None:
     inky_frame.button_a.led_off()
     inky_frame.button_b.led_off()
     inky_frame.button_c.led_off()
@@ -126,7 +126,7 @@ def clear_button_leds():
     inky_frame.button_e.led_off()
 
 
-def network_connect(SSID, PSK):
+def network_connect(SSID: str, PSK: str) -> None:
     # Enable the Wireless
     wlan = network.WLAN(network.STA_IF)
     wlan.active(True)
@@ -155,7 +155,7 @@ def network_connect(SSID, PSK):
         led_warn.on()
 
 
-def connect(ssid, psk):
+def connect(ssid: str, psk: str) -> bool:
     """Join Wi-Fi unless already connected, then sync the clock. Returns whether connected."""
     if not network.WLAN(network.STA_IF).isconnected():
         network_connect(ssid, psk)
@@ -165,14 +165,14 @@ def connect(ssid, psk):
     return connected
 
 
-def load_clock():
+def load_clock() -> None:
     # The board's RTC keeps time while powered off, but MicroPython's own clock restarts on every boot.
     year, month, day, hour, minute, second, weekday = rtc.datetime()
     if year >= MIN_VALID_YEAR:
         RTC().datetime((year, month, day, weekday, hour, minute, second, 0))
 
 
-def sync_clock():
+def sync_clock() -> None:
     # NTP time is UTC; it is stored in both clocks so it survives a power-off.
     import ntptime
     ntptime.timeout = NTP_TIMEOUT
@@ -190,42 +190,42 @@ def sync_clock():
     log.info("Clock set to %04d-%02d-%02d %02d:%02d:%02d UTC via %s", year, month, day, hour, minute, second, host)
 
 
-state = {"run": None}
-app = None
+state: "dict[str, Any]" = {"run": None}
+app: "ModuleType | None" = None
 
 
-def file_exists(filename):
+def file_exists(filename: str) -> bool:
     try:
         return (os.stat(filename)[0] & 0x4000) == 0
     except OSError:
         return False
 
 
-def clear_state():
+def clear_state() -> None:
     if file_exists("state.json"):
         os.remove("state.json")
 
 
-def save_state(data):
+def save_state(data: "dict[str, Any]") -> None:
     with open("/state.json", "w") as f:
         f.write(json.dumps(data))
         f.flush()
 
 
-def load_state():
+def load_state() -> None:
     global state
     data = json.loads(open("/state.json", "r").read())
     if type(data) is dict:
         state = data
 
 
-def update_state(running):
+def update_state(running: str | None) -> None:
     global state
     state['run'] = running
     save_state(state)
 
 
-def launch_app(app_name):
+def launch_app(app_name: str) -> None:
     global app
     app = __import__(app_name)
     print(app)

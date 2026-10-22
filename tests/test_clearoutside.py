@@ -29,34 +29,34 @@ REAL_GETADDRINFO = socket.getaddrinfo
 class CPythonSocket:
     """Gives a CPython TLS socket the write/readline API that MicroPython sockets have."""
 
-    def __init__(self, sock):
+    def __init__(self, sock: ssl.SSLSocket) -> None:
         self._sock = sock
-        self._file = sock.makefile("rb")
+        self._file = sock.makefile("rb")  # pyright: ignore[reportAttributeAccessIssue] - The workspace's MicroPython ssl stubs lack CPython's SSLSocket.makefile.
 
-    def write(self, data):
+    def write(self, data: bytes) -> None:
         self._sock.sendall(data)
 
-    def readline(self):
+    def readline(self) -> bytes:
         return self._file.readline()
 
-    def close(self):
+    def close(self) -> None:
         self._file.close()
         self._sock.close()
 
 
-def ipv4_getaddrinfo(host, port):
+def ipv4_getaddrinfo(host: str, port: int) -> list[tuple]:
     # socket.socket() is AF_INET, but CPython may return IPv6 addresses first.
     return REAL_GETADDRINFO(host, port, socket.AF_INET, socket.SOCK_STREAM)
 
 
-def wrap_socket(sock, server_hostname=None):
+def wrap_socket(sock: socket.socket, server_hostname: str | None = None) -> CPythonSocket:
     tls = REAL_SSL_CONTEXT(ssl.PROTOCOL_TLS_CLIENT)
     tls.load_default_certs()
     sock.settimeout(30)
     return CPythonSocket(tls.wrap_socket(sock, server_hostname=server_hostname))
 
 
-def test_parse():
+def test_parse() -> None:
     data = clearoutside.parse(PAGE, keep=("total_cloud", "temp"))
 
     assert data["location"] == "Test Town"
@@ -71,7 +71,7 @@ def test_parse():
 @mock.patch("socket.getaddrinfo", new=lambda host, port: [(None, None, None, "", ("1.2.3.4", port))])
 @mock.patch("ssl.SSLContext")
 @mock.patch("socket.socket")
-def test_fetch(sock_cls, ssl_context):
+def test_fetch(sock_cls: mock.MagicMock, ssl_context: mock.MagicMock) -> None:
     sock = sock_cls.return_value
     ssl_context.return_value.wrap_socket.return_value = sock
     lines = iter([b"HTTP/1.0 200 OK\r\n", b"Content-Type: text/html\r\n", b"\r\n", *PAGE])
@@ -90,7 +90,7 @@ def test_fetch(sock_cls, ssl_context):
 @pytest.mark.live
 @mock.patch("socket.getaddrinfo", new=ipv4_getaddrinfo)
 @mock.patch("ssl.SSLContext")
-def test_fetch_live(ssl_context):
+def test_fetch_live(ssl_context: mock.MagicMock) -> None:
     # Real network; only the MicroPython-style socket calls in `fetch` are adapted to CPython.
     ssl_context.return_value.wrap_socket.side_effect = wrap_socket
 

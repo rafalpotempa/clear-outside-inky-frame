@@ -1,0 +1,19 @@
+{
+    "python.analysis.typeCheckingMode": "basic",
+    "python.analysis.diagnosticSeverityOverrides": {
+        "reportMissingModuleSource": "none"
+    },
+    "python.analysis.typeshedPaths": [
+        "./typings"
+    ],
+    "python.testing.pytestArgs": [
+        "."
+    ],
+    "python.testing.unittestEnabled": false,
+    "python.testing.pytestEnabled": true,
+    "micropico.syncFolder": "src",
+    "micropico.syncAllFileTypes": false,
+    "micropico.syncFileTypes": ["py"],
+    "micropico.pyIgnore": ["__init__.py", "config.py", "secrets.py", "__pycache__"],
+    "micropico.softResetAfterUpload": true
+}
